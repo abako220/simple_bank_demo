@@ -1,0 +1,64 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:12.19-alpine3.20
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DATABASE=simple_bank
+    ports:
+      - '5432:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+  prometheus:
+    image: prom/prometheus
+    network_mode: host
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - "./data/prometheus/config:/etc/prometheus/"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+    ports:
+      - "9090:9090"
+    links:
+      - node-exporter:node-exporter
+  node-exporter:
+    image: prom/node-exporter:latest
+    # network_mode: host
+    container_name: monitoring_node_exporter
+    restart: unless-stopped
+    expose:
+      - 9100
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    pull_policy: always
+    #network_mode: host
+    user: root
+    ports:
+      - "3000:3000"
+    links:
+      - "prometheus: prometheus"
+    restart: unless-stopped
+
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_DOMAIN = localhost
+      - GF_USER_ALLOW_SIGN_UP = false
+      - GF_LOG_MODE = console file
+      - GF_LOG_FILTERS = alerting.notifier.slack:debug alertmanager:debug ngalert:debug
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+
+volumes:
+  db:
+    driver: local
